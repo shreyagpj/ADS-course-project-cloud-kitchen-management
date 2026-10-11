@@ -10,6 +10,7 @@
 #include "orders/orders.h"
 #include "delivery/delivery.h"
 #include "billing/billing.h"
+#include "db/db.h"
 
 static void ask_text(const char *prompt, char *buf, int size)
 {
@@ -145,6 +146,10 @@ static void menu_billing(void)
 
 int main(void)
 {
+    MYSQL *conn = connectDb();
+    if (conn == NULL)
+        return 1;
+
     int choice;
     do {
         printf("\nCLOUD KITCHEN MANAGEMENT SYSTEM\n"
@@ -162,5 +167,7 @@ int main(void)
         default: printf("Invalid choice.\n");
         }
     } while (choice != 0);
+
+    disconnectDb(conn);
     return 0;
 }
