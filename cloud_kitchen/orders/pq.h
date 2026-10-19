@@ -8,13 +8,12 @@
  *   order_place()     -> pq_push(order_id, key)
  *   order_cook_next() -> id = pq_pop()          (returns -1 if the queue is empty)
  *   order_queue_show()-> pq_show()
- *
- * Implementation hint: array-based heap; parent(i) = (i-1)/2; sift-up on push,
- * sift-down on pop. Grow the array with realloc when it is full.              */
+ */
 #ifndef PQ_H
 #define PQ_H
 
+// Push and pop return -1 on failure
 int  pq_push(int order_id, long key);
-int  pq_pop(void);          /* order_id with the smallest key, or -1 */
-void pq_show(void);         /* print in priority order (don't destroy the heap) */
+int  pq_pop(void);
+void pq_show(void);
 #endif
