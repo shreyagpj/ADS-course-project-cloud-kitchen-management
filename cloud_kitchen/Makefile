@@ -12,8 +12,8 @@ run: cloud_kitchen
 
 dbinit:
 	set -a; . ../.env; set +a; \
-	cat ../dbinit.sql orders/orders_schema.sql billings/billing_schema.sql user/user_schema.sql \
-staff/staff_schema.sql | \
+	cat ../dbinit.sql menu/menu_schema.sql orders/orders_schema.sql billing/billing_schema.sql user/user_schema.sql staff/staff_schema.sql delivery/delivery_schema.sql \
+	../insertion_script.sql | \
 	mysql -h "$$DB_HOST" -P "$$DB_PORT" -u "$$DB_USER" -p
 
 clean:

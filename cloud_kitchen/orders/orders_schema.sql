@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     CONSTRAINT chk_order_items_qty CHECK (quantity > 0),
     CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders (order_id)
         ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_order_items_item  FOREIGN KEY (item_id)  REFERENCES items (item_id)
+    CONSTRAINT fk_order_items_item  FOREIGN KEY (item_id)  REFERENCES menu (menu_id)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     INDEX idx_order_items_item (item_id)
 );
