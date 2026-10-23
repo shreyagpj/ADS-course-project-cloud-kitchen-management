@@ -103,7 +103,7 @@ static void menu_items(void)
 static void menu_orders(void)
 {
     printf("\n1. Place order\n2. View order\n3. Kitchen queue\n"
-           "4. Chef takes next order\n5. Mark order ready\n");
+           "4. Chef takes next order\n5. Mark order ready\n6. Delete order\n");
     switch (ask_int("Choice: ")) {
     case 1: { int uid = ask_int("User ID: ");
               OrderLine lines[MAX_LINES]; int n = 0;
@@ -126,6 +126,7 @@ static void menu_orders(void)
               else         printf("No order to cook.\n");
               break; }
     case 5: printf(order_mark_ready(ask_int("Order ID: ")) == 0 ? "Order is ready.\n" : "Failed.\n"); break;
+    case 6: printf(order_delete(ask_int("Order ID: ")) == 0 ? "Order deleted.\n" : "Failed.\n"); break;
     default: printf("Invalid choice.\n");
     }
 }
@@ -146,11 +147,12 @@ static void menu_delivery(void)
 
 static void menu_billing(void)
 {
-    printf("\n1. Generate bill\n2. Pay bill\n3. View bill\n");
+    printf("\n1. Generate bill\n2. Pay bill\n3. View bill\n4. Delete bill\n");
     switch (ask_int("Choice: ")) {
     case 1: report(bill_generate(ask_int("Order ID: ")), "Bill"); break;
     case 2: printf(bill_pay(ask_int("Bill ID: ")) == 0 ? "Paid.\n" : "Failed.\n"); break;
     case 3: bill_show(ask_int("Bill ID: ")); break;
+    case 4: printf(bill_delete(ask_int("Bill ID: ")) == 0 ? "Bill deleted.\n" : "Failed.\n"); break;
     default: printf("Invalid choice.\n");
     }
 }
@@ -160,6 +162,10 @@ int main(void)
     conn = connectDb();
     if (conn == NULL)
         return 1;
+
+    int waiting = order_load_queue();   /* refill the kitchen queue from the database */
+    if (waiting < 0) printf("Warning: could not load waiting orders.\n");
+    else if (waiting > 0) printf("%d order(s) waiting in the kitchen queue.\n", waiting);
 
     int choice;
     do {

@@ -12,8 +12,13 @@
  *   int next = order_cook_next(chef_id); // pops the priority queue
  *   order_mark_ready(next);
  *
- * order_place() should: check the user (user_get), add up item prices (item_get),
- *   save the order with status PLACED, then pq_push(order_id, priority*100000+order_id).
+ * Orders are stored in the MySQL database (tables orders / order_items). The
+ * priority queue (pq.h) only holds the PLACED orders waiting for a chef, so
+ * order_place() and order_delete() update BOTH the database and the queue.
+ *
+ * order_place(): checks the user and the items in the database, adds up the
+ *   prices, saves the order with status PLACED, then
+ *   pq_push(order_id, priority*100000+order_id).
  *
  * delivery.c calls: order_get(), order_set_status(), order_set_delivery_staff().  */
 #ifndef ORDERS_H
@@ -37,6 +42,9 @@ void order_show(int id);
 void order_queue_show(void);
 int  order_cook_next(int chef_id);         /* returns order_id or -1 */
 int  order_mark_ready(int id);
+
+int  order_delete(int id);                /* removes from the database AND the queue; 0 or -1 */
+int  order_load_queue(void);              /* call once after connectDb(): reloads PLACED orders into the queue */
 
 int  order_set_status(int id, OrderStatus s);
 int  order_set_delivery_staff(int id, int staff_id);

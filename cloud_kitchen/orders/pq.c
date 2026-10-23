@@ -84,14 +84,51 @@ int pq_pop(void) {
     return id;
 }
 
-// Display orders present in queue
+// Remove a specific order from anywhere in the queue (used when an order is deleted/cancelled)
+int pq_remove(int id) {
+    for (int i = 0; i < size; i++) {
+        if (heap[i].order_id != id)
+            continue;
+
+        heap[i] = heap[size - 1];
+        size--;
+        if (i < size) {            /* moved node may need to go either way */
+            move_up(i);
+            move_down(i);
+        }
+        return 0;
+    }
+    return -1;                     /* not in the queue */
+}
+
+// Empty the queue (used before reloading it from the database)
+void pq_clear(void) {
+    size = 0;
+}
+
+static int compare_nodes(const void *a, const void *b) {
+    const PQNode *x = a, *y = b;
+    return (x->key > y->key) - (x->key < y->key);
+}
+
+// Display orders present in queue, in cooking order (the heap itself is left untouched)
 void pq_show(void) {
     if (size == 0) {
         printf("Orders queue is empty.\n");
         return;
     }
 
+    PQNode *copy = malloc(size * sizeof(PQNode));
+    if (copy == NULL) {
+        printf("Out of memory.\n");
+        return;
+    }
+    for (int i = 0; i < size; i++)
+        copy[i] = heap[i];
+    qsort(copy, size, sizeof(PQNode), compare_nodes);
+
     printf("Orders waiting to be cooked:\n");
     for (int i = 0; i < size; i++)
-        printf("Order ID: %d, Key: %ld\n", heap[i].order_id, heap[i].key);
+        printf("%d. Order ID: %d, Key: %ld\n", i + 1, copy[i].order_id, copy[i].key);
+    free(copy);
 }

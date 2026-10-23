@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "delivery.h"
-#include "menu.h"
+#include "../menu/menu.h"
 
-static Order *front = NULL;     /* priority queue as a sorted linked list */
+static DeliveryOrder *front = NULL;     /* priority queue as a sorted linked list */
 
 void addOrder(int orderId, const char *customer, const char *address,
               int menuId, int quantity, int priority) {
@@ -13,7 +13,7 @@ void addOrder(int orderId, const char *customer, const char *address,
         return;
     }
 
-    Order *o = (Order *)malloc(sizeof(Order));
+    DeliveryOrder *o = (DeliveryOrder *)malloc(sizeof(DeliveryOrder));
     if (o == NULL) {
         printf("Out of memory.\n");
         return;
@@ -33,7 +33,7 @@ void addOrder(int orderId, const char *customer, const char *address,
         o->next = front;
         front = o;
     } else {
-        Order *cur = front;
+        DeliveryOrder *cur = front;
         while (cur->next != NULL && cur->next->priority <= priority)
             cur = cur->next;
         o->next = cur->next;
@@ -47,7 +47,7 @@ void startDelivery(void) {
         printf("No orders to deliver.\n");
         return;
     }
-    Order *o = front;
+    DeliveryOrder *o = front;
     front = front->next;
 
     MenuItem *item = findMenuItem(o->menuId);
@@ -62,7 +62,7 @@ void showOrders(void) {
         return;
     }
     printf("OrderID  Customer        Item  Qty  Priority\n");
-    for (Order *cur = front; cur != NULL; cur = cur->next)
+    for (DeliveryOrder *cur = front; cur != NULL; cur = cur->next)
         printf("%-8d %-15s %-5d %-4d %d\n", cur->orderId, cur->customer,
                cur->menuId, cur->quantity, cur->priority);
 }

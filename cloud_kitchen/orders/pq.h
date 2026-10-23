@@ -16,5 +16,7 @@
 
 int  pq_push(int order_id, long key);
 int  pq_pop(void);          /* order_id with the smallest key, or -1 */
+int  pq_remove(int order_id);   /* take one order out of the queue: 0 if removed, -1 if not there */
+void pq_clear(void);          /* empty the queue */
 void pq_show(void);         /* print in priority order (don't destroy the heap) */
 #endif

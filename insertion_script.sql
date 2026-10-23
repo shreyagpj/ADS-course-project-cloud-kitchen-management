@@ -7,7 +7,6 @@ USE ADS_cloud_kitchen;
 -- STAFF
 -- ---------------------------------------------------------
 INSERT INTO staff (f_name, l_name, email, contact_number, role, hiring_date, salary) VALUES
-('Rohan',  'Mehta',   'rohan.mehta@cloudkitchen.com',    '9876543210', 'ADMIN',    '2023-01-10', 55000.00),
 ('Priya',  'Shah',    'priya.shah@cloudkitchen.com',     '9876543211', 'CHEF',     '2023-02-15', 40000.00),
 ('Amit',   'Patel',   'amit.patel@cloudkitchen.com',     '9876543212', 'CHEF',     '2023-03-01', 38000.00),
 ('Neha',   'Desai',   'neha.desai@cloudkitchen.com',     '9876543213', 'CHEF',     '2023-06-20', 36000.00),
