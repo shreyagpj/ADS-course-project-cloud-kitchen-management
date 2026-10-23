@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS staff (
     l_name         VARCHAR(100)    NOT NULL,
     email          VARCHAR(255)    NOT NULL,
     contact_number VARCHAR(20)     NULL,
-    role           ENUM('CHEF', 'DELIVERY', 'ADMIN') NOT NULL,
+    role           ENUM('CHEF', 'DELIVERY') NOT NULL,
     hiring_date    DATE            NOT NULL,
     salary         DECIMAL(10,2)   NOT NULL,
 

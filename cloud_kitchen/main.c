@@ -12,6 +12,8 @@
 #include "billing/billing.h"
 #include "db/db.h"
 
+MYSQL *conn;
+
 static void ask_text(const char *prompt, char *buf, int size)
 {
     printf("%s", prompt);
@@ -47,7 +49,7 @@ static void menu_users(void)
 {
     printf("\n1. Add user\n2. List users\n");
     switch (ask_int("Choice: ")) {
-    case 1: { char n[NAME_LEN], p[16];
+    case 1: { char n[MAX_NAME], p[16];
               ask_text("Name : ", n, sizeof n);
               ask_text("Phone: ", p, sizeof p);
               printf("Delivery location:\n");
@@ -61,17 +63,26 @@ static void menu_staff(void)
 {
     printf("\n1. Add staff\n2. List staff\n");
     switch (ask_int("Choice: ")) {
-    case 1: { char n[NAME_LEN];
-              ask_text("Name: ", n, sizeof n);
-              int role = ask_int("Role (1=Chef, 2=Delivery partner): ");
-              if (role != ROLE_CHEF && role != ROLE_DELIVERY) { printf("Invalid role.\n"); break; }
-              int id = staff_add(n, (Role)role);
-              report(id, "Staff");
-              if (id > 0 && role == ROLE_DELIVERY) {       /* goes into the KD-tree */
-                  printf("Partner's current location:\n");
-                  delivery_add_partner(id, ask_location());
-              }
-              break; }
+    case 1: { char fName[101], lName[101], email[256], contact[21], date[16], salaryText[32];
+            ask_text("First name: ", fName, sizeof fName);
+            ask_text("Last name: ", lName, sizeof lName);
+            ask_text("Email: ", email, sizeof email);
+            ask_text("Contact number (blank to skip): ", contact, sizeof contact);
+            int role = ask_int("Role (1=Chef, 2=Delivery partner): ");
+            if (role != ROLE_CHEF && role != ROLE_DELIVERY) {
+                printf("Invalid role.\n");
+                break;
+            }
+            ask_text("Hiring date (YYYY-MM-DD): ", date, sizeof date);
+            ask_text("Salary: ", salaryText, sizeof salaryText);
+            int id = staff_add(fName, lName, email, contact[0] ? contact : NULL, (Role) role, date, atof(salaryText));
+            report(id, "Staff");
+            if (id > 0 && role == ROLE_DELIVERY)
+            {
+                printf("Partner's current location:\n");
+                delivery_add_partner(id, ask_location());
+            }
+            break; }
     case 2: staff_list(); break;
     default: printf("Invalid choice.\n");
     }
@@ -81,7 +92,7 @@ static void menu_items(void)
 {
     printf("\n1. Add item\n2. List items\n");
     switch (ask_int("Choice: ")) {
-    case 1: { char n[NAME_LEN];
+    case 1: { char n[MAX_NAME];
               ask_text("Item name: ", n, sizeof n);
               report(item_add(n, ask_double("Price: ")), "Item"); break; }
     case 2: item_list(); break;
@@ -146,7 +157,7 @@ static void menu_billing(void)
 
 int main(void)
 {
-    MYSQL *conn = connectDb();
+    conn = connectDb();
     if (conn == NULL)
         return 1;
 

@@ -4,15 +4,19 @@
 #ifndef COMMON_H
 #define COMMON_H
 #include <stdio.h>
+#include <mysql/mysql.h>
 
-#define NAME_LEN  50
+#define MAX_NAME  50
 #define MAX_LINES 10                       /* max different items in one order */
 #define TODO() printf("[TODO] %s() not implemented yet\n", __func__)
 
-typedef struct { double lat, lon; } GeoPoint;
+extern MYSQL *conn;
 
-typedef enum { ORDER_PLACED, ORDER_COOKING, ORDER_READY,
-               ORDER_OUT_FOR_DELIVERY, ORDER_DELIVERED } OrderStatus;
+typedef struct { 
+    double lat, lon; 
+} GeoPoint;
+
+typedef enum { ORDER_PLACED, ORDER_COOKING, ORDER_READY, ORDER_OUT_FOR_DELIVERY, ORDER_DELIVERED } OrderStatus;
 typedef enum { ROLE_CHEF = 1, ROLE_DELIVERY = 2 } Role;
 
 #endif
