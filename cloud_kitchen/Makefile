@@ -1,8 +1,8 @@
 CC     = gcc
-CFLAGS = -Wall -Wextra -std=c11 -g
+CFLAGS = -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -g
 SRCS   = main.c user/user.c staff/staff.c menu/menu.c orders/orders.c orders/pq.c \
          delivery/delivery.c delivery/kdtree.c billing/billing.c db/db.c\
-		 trie/trie.c terminal/terminal.c
+		 tries/trie.c terminal/terminal.c
 LDLIBS = -lm -lmysqlclient
 
 cloud_kitchen: $(SRCS)
