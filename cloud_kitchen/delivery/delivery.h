@@ -1,19 +1,20 @@
 #ifndef DELIVERY_H
 #define DELIVERY_H
 
-typedef struct DeliveryOrder {
-    int orderId;
-    char customer[50];
-    char address[100];
-    int menuId;
-    int quantity;
-    int priority;               /* 1 = urgent, bigger number = less urgent */
-    struct DeliveryOrder *next;
-} DeliveryOrder;
+#include "../common.h"      /* GeoPoint */
 
-void addOrder(int orderId, const char *customer, const char *address,
-              int menuId, int quantity, int priority);
-void startDelivery(void);       /* pops the highest priority order */
-void showOrders(void);
+/* Registers a delivery partner's current location (or updates it if already registered).
+ * staff_id must belong to a staff member with role DELIVERY.
+ * Returns 0 on success, -1 on failure. */
+int delivery_add_partner(int staff_id, GeoPoint loc);
+
+/* Assigns the nearest free delivery partner to a READY order and sets the order
+ * to OUT_FOR_DELIVERY. Returns the partner's staff_id, or -1 if the order is not
+ * ready / has no location / no partner is free. */
+int delivery_assign(int order_id);
+
+/* Marks an OUT_FOR_DELIVERY order as DELIVERED and moves the partner to the
+ * customer's location. Returns 0 on success, -1 on failure. */
+int delivery_complete(int order_id);
 
 #endif

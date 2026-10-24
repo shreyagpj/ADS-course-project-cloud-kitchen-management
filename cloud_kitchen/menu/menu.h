@@ -1,16 +1,11 @@
 #ifndef MENU_H
 #define MENU_H
 
-typedef struct MenuItem {
-    int id;
-    char name[50];
-    float price;
-    struct MenuItem *next;
-} MenuItem;
+/* Adds a menu item to the database.
+ * Returns the new item ID (> 0), or -1 on failure. */
+int item_add(const char *name, double price);
 
-void addMenuItem(int id, const char *name, float price);
-void removeMenuItem(int id);
-MenuItem *findMenuItem(int id);
-void showMenu(void);
+/* Prints all menu items. */
+void item_list(void);
 
 #endif
