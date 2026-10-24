@@ -1,9 +1,3 @@
-/* orders.c - orders live in the MySQL database; the PLACED ones are also kept
- * in the priority queue (pq.c) so the kitchen can pop the most urgent one.
- *
- * add (order_place) and delete (order_delete) update BOTH the database and
- * the queue. If the database step fails, the queue is left untouched, so the
- * two never disagree.                                                        */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,10 +7,7 @@
 
 #define KEY(priority, id) ((long)(priority) * 100000L + (id))
 
-static const char *STATUS_NAME[] = { "PLACED", "COOKING", "READY",
-                                     "OUT_FOR_DELIVERY", "DELIVERED" };
-
-/* ---------- helpers ---------- */
+static const char *STATUS_NAME[] = { "PLACED", "COOKING", "READY", "OUT_FOR_DELIVERY", "DELIVERED" };
 
 static int run_query(const char *sql)
 {

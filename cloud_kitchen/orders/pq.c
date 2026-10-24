@@ -92,16 +92,13 @@ int pq_remove(int id) {
 
         heap[i] = heap[size - 1];
         size--;
-        if (i < size) {            /* moved node may need to go either way */
-            move_up(i);
+        if (i < size)
             move_down(i);
-        }
         return 0;
     }
-    return -1;                     /* not in the queue */
+    return -1;
 }
 
-// Empty the queue (used before reloading it from the database)
 void pq_clear(void) {
     size = 0;
 }
@@ -111,7 +108,7 @@ static int compare_nodes(const void *a, const void *b) {
     return (x->key > y->key) - (x->key < y->key);
 }
 
-// Display orders present in queue, in cooking order (the heap itself is left untouched)
+// Display orders present in queue, in cooking order
 void pq_show(void) {
     if (size == 0) {
         printf("Orders queue is empty.\n");

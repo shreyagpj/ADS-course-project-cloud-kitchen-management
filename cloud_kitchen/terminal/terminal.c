@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include "trie.h"
+#include "../tries/trie.h"
 
 #define AZ 128
 
