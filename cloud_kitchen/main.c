@@ -48,14 +48,30 @@ static void report(int id, const char *what)    /* prints result of an "add" cal
 static void menu_users(void)
 {
     printf("\n1. Add user\n2. List users\n");
-    switch (ask_int("Choice: ")) {
-    case 1: { char n[MAX_NAME], p[16];
-              ask_text("Name : ", n, sizeof n);
-              ask_text("Phone: ", p, sizeof p);
-              printf("Delivery location:\n");
-              report(user_add(n, p, ask_location()), "User"); break; }
-    case 2: user_list(); break;
-    default: printf("Invalid choice.\n");
+    switch (ask_int("Choice: "))
+    {
+    case 1:
+    {
+        char fName[101], lName[101], email[256], dob[16], contact[21], houseNo[21], socName[151], street[151], city[101], state[101];
+        ask_text("First name: ", fName, sizeof fName);
+        ask_text("Last name: ", lName, sizeof lName);
+        ask_text("Email: ", email, sizeof email);
+        ask_text("Date of birth (YYYY-MM-DD, blank to skip): ", dob, sizeof dob);
+        ask_text("Contact number (blank to skip): ", contact, sizeof contact);
+        ask_text("House no (blank to skip): ", houseNo, sizeof houseNo);
+        ask_text("Society name (blank to skip): ", socName, sizeof socName);
+        ask_text("Street (blank to skip): ", street, sizeof street);
+        ask_text("City (blank to skip): ", city, sizeof city);
+        ask_text("State (blank to skip): ", state, sizeof state);
+        printf("Delivery location:\n");
+        report(user_add(fName, lName, email, dob, contact, houseNo, socName, street, ask_location(), city, state), "User");
+        break;
+    }
+    case 2:
+        user_list();
+        break;
+    default:
+        printf("Invalid choice.\n");
     }
 }
 
