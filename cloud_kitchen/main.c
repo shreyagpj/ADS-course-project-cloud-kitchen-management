@@ -267,10 +267,8 @@ static const Cmd C[] = {
     {"billing delete", c_bdel}, {"help", c_help}, {"exit", c_exit}
 };
 
-_Static_assert(sizeof C / sizeof *C <= MAXL, "trie holds at most MAXL commands");
-
 static void c_help(void) {
-    printf("Commands (Tab completes, Right arrow accepts the grey suggestion):\n");
+    printf("Commands:\n");
     for (int i = 0; i < NC; i++)
         printf("  %s\n", C[i].n);
 }
@@ -295,6 +293,12 @@ int main(void) {
         printf("Warning: could not load waiting orders.\n");
     else if (w > 0)
         printf("%d order(s) waiting in the kitchen queue.\n", w);
+
+    if (NC > MAXL) {
+        printf("Too many commands for the trie (max %d).\n", MAXL);
+        disconnectDb(conn);
+        return 1;
+    }
 
     TNode *t = trie_new();
     if (t == NULL) {
