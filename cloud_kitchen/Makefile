@@ -1,8 +1,7 @@
 CC     = gcc
 CFLAGS = -Wall -Wextra -std=c11 -D_POSIX_C_SOURCE=200809L -g
 SRCS   = main.c user/user.c staff/staff.c menu/menu.c orders/orders.c orders/pq.c \
-         delivery/delivery.c delivery/kdtree.c billing/billing.c db/db.c \
-         tries/trie.c terminal/terminal.c
+         delivery/delivery.c delivery/kdtree.c billing/billing.c db/db.c tries/trie.c
 HDRS   = $(wildcard *.h */*.h)
 LDLIBS = -lm -lmysqlclient
 
