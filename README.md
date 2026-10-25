@@ -1,15 +1,20 @@
 # Cloud Kitchen Management System
 
-## Database Connectivity
-For Ubuntu/Debian systems, install the mysql connection library using:
+## Setup
+Install the MySQL client library (Ubuntu/Debian):
 ```
 sudo apt update
 sudo apt install libmysqlclient-dev build-essential
 ```
-Create a .env with DB_HOST, DB_PORT, DB_USER, DB_PASSWORD and DB_NAME. Run the dbinit.sql on your machine via MySQL then make run
+Create a `.env` in the repo root with `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` and `DB_NAME`.
+The schema files use the database `ADS_cloud_kitchen`, so set `DB_NAME=ADS_cloud_kitchen`.
+
+From `cloud_kitchen/`:
+- `make dbinit` creates the database, all tables and the sample data (run it once on an empty server)
+- `make run` builds and starts the program
 
 ## Command terminal with autosuggest (trie)
-`make run` starts a `kitchen>` prompt. Commands are stored in a trie (`cloud_kitchen/trie/`),
+`make run` starts a `kitchen>` prompt. Commands are stored in a trie (`cloud_kitchen/tries/`),
 and `cloud_kitchen/terminal/` reads keys in raw mode to show live suggestions:
 
 - grey ghost text shows the best match as you type
@@ -18,13 +23,18 @@ and `cloud_kitchen/terminal/` reads keys in raw mode to show live suggestions:
 - commands you use more often are suggested first (usage count stored in the trie node)
 - unknown commands get "Did you mean" suggestions
 
-Commands: `users add|list`, `staff add|list`, `items add|list`,
-`orders place|view|queue|cook|ready`, `delivery assign|complete`,
-`billing generate|pay|view`, `menu` (old numbered menu), `help`, `exit`.
-To add a command, add one line to the `COMMANDS` table in `main.c`.
+Commands: `users add|list`, `staff add|list`, `items add|list|available|price`,
+`orders place|view|queue|cook|ready|delete`, `delivery assign|complete`,
+`billing generate|pay|view|delete`, `menu` (old numbered menu), `help`, `exit`.
+To add a command, add one line to the `C` table in `main.c` (at most `MAXL` commands).
 
 ## Processing placed orders (priority queue)
-Placing an order inserts it both in the database as well as the priority queue. Only placed orders are present in the queue, and priority is assigned as `priority * 100000 + order_id` where priority 1 = urgent, 2 = normal, 3 = low. For orders having the same priority, the ones placed earlier get completed first.
+Placing an order inserts it in the database and in the priority queue. Only PLACED orders are queued
+(the queue is rebuilt from the database on start). The key is `priority * 1000000000 + order_id`, where
+priority 1 = urgent, 2 = normal, 3 = low, so equal priorities are cooked oldest first.
+Only PLACED orders can be deleted.
 
 ## Delivering orders (KD tree)
-A K-Dimensional tree is used to map delivery parteners to orders based on their geo coordinates. Delivery drivers who are not currently busy will get assigned the location closest to them.
+When an order is assigned, all delivery partners (table `delivery_partner`) are loaded into a 2-d tree.
+Partners with an OUT_FOR_DELIVERY order are marked busy, and the nearest free partner to the customer is chosen.
+When the order is delivered, the partner's location becomes the customer's location.

@@ -5,26 +5,24 @@
 #include "orders.h"
 #include "pq.h"
 
-#define KEY(priority, id) ((long)(priority) * 100000L + (id))
-
 static const char *STATUS_NAME[] = { "PLACED", "COOKING", "READY", "OUT_FOR_DELIVERY", "DELIVERED" };
 
-static int run_query(const char *sql)
+static int run_query(const char *q)
 {
     MYSQL *db = conn;
     if (db == NULL) { fprintf(stderr, "No database connection.\n"); return -1; }
-    if (mysql_query(db, sql) != 0) {
+    if (mysql_query(db, q) != 0) {
         fprintf(stderr, "Database error: %s\n", mysql_error(db));
         return -1;
     }
     return 0;
 }
 
-/* Runs a SELECT and returns the first row (caller frees *res), or NULL. */
-static MYSQL_ROW select_one(const char *sql, MYSQL_RES **res)
+//Runs a SELECT and returns the first row (caller frees *res), or NULL.
+static MYSQL_ROW select_one(const char *q, MYSQL_RES **res)
 {
     *res = NULL;
-    if (run_query(sql) != 0) return NULL;
+    if (run_query(q) != 0) return NULL;
     *res = mysql_store_result(conn);
     if (*res == NULL) return NULL;
     MYSQL_ROW row = mysql_fetch_row(*res);
@@ -34,129 +32,130 @@ static MYSQL_ROW select_one(const char *sql, MYSQL_RES **res)
 
 static int status_from_name(const char *name)
 {
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < (int)(sizeof STATUS_NAME / sizeof *STATUS_NAME); i++)
         if (strcmp(name, STATUS_NAME[i]) == 0) return i;
     return -1;
 }
 
 static int order_exists(int id)
 {
-    char sql[128];
+    char q[128];
     MYSQL_RES *res;
-    snprintf(sql, sizeof sql, "SELECT 1 FROM orders WHERE order_id = %d", id);
-    if (select_one(sql, &res) == NULL) return 0;
+    snprintf(q, sizeof q, "SELECT 1 FROM orders WHERE order_id = %d", id);
+    if (select_one(q, &res) == NULL) return 0;
     mysql_free_result(res);
     return 1;
 }
 
-/* 1 if staff_id exists and has the given role ("CHEF" / "DELIVERY"), else 0 */
-static int staff_has_role(int staff_id, const char *role)
+//1 if staff_id exists and has the given role ("CHEF" / "DELIVERY"), else 0
+static int staff_has_role(int sid, const char *role)
 {
-    char sql[160];
+    char q[160];
     MYSQL_RES *res;
-    snprintf(sql, sizeof sql,
-             "SELECT 1 FROM staff WHERE staff_id = %d AND role = '%s'", staff_id, role);
-    if (select_one(sql, &res) == NULL) return 0;
+    snprintf(q, sizeof q,
+             "SELECT 1 FROM staff WHERE staff_id = %d AND role = '%s'", sid, role);
+    if (select_one(q, &res) == NULL) return 0;
     mysql_free_result(res);
     return 1;
 }
 
-/* ---------- add ---------- */
+//---------- add ----------
 
-int order_place(int user_id, const OrderLine lines[], int n, int priority)
+int order_place(int uid, const OrderLine lines[], int n, int pr)
 {
     if (lines == NULL || n <= 0 || n > MAX_LINES) {
         printf("An order needs between 1 and %d items.\n", MAX_LINES);
         return -1;
     }
-    if (priority < 1 || priority > 3) {
+    if (pr < 1 || pr > 3) {
         printf("Priority must be 1 (urgent), 2 (normal) or 3 (low).\n");
         return -1;
     }
 
-    char sql[512];
+    char q[512];
     MYSQL_RES *res;
     MYSQL_ROW row;
 
-    snprintf(sql, sizeof sql, "SELECT 1 FROM users WHERE user_id = %d", user_id);
-    if ((row = select_one(sql, &res)) == NULL) {
-        printf("User %d does not exist.\n", user_id);
+    snprintf(q, sizeof q, "SELECT 1 FROM users WHERE user_id = %d", uid);
+    if ((row = select_one(q, &res)) == NULL) {
+        printf("User %d does not exist.\n", uid);
         return -1;
     }
     mysql_free_result(res);
 
-    /* merge repeated items (order_items has one row per item) and price them */
-    OrderLine merged[MAX_LINES];
+    //merge repeated items (order_items has one row per item) and price them
+    OrderLine mg[MAX_LINES];
     int m = 0;
     for (int i = 0; i < n; i++) {
         if (lines[i].qty <= 0) { printf("Invalid quantity for item %d.\n", lines[i].item_id); return -1; }
         int j;
         for (j = 0; j < m; j++)
-            if (merged[j].item_id == lines[i].item_id) { merged[j].qty += lines[i].qty; break; }
-        if (j == m) merged[m++] = lines[i];
+            if (mg[j].item_id == lines[i].item_id) { mg[j].qty += lines[i].qty; break; }
+        if (j == m) mg[m++] = lines[i];
     }
 
-    long total_cents = 0;
+    long tc = 0;
     for (int i = 0; i < m; i++) {
-        snprintf(sql, sizeof sql,
+        snprintf(q, sizeof q,
                  "SELECT ROUND(price * 100), is_available FROM menu WHERE menu_id = %d",
-                 merged[i].item_id);
-        if ((row = select_one(sql, &res)) == NULL) {
-            printf("Item %d does not exist.\n", merged[i].item_id);
+                 mg[i].item_id);
+        if ((row = select_one(q, &res)) == NULL) {
+            printf("Item %d does not exist.\n", mg[i].item_id);
             return -1;
         }
-        long cents = atol(row[0]);
-        int available = atoi(row[1]);
+        long ce = atol(row[0]);
+        int av = atoi(row[1]);
         mysql_free_result(res);
-        if (!available) { printf("Item %d is not available.\n", merged[i].item_id); return -1; }
-        total_cents += cents * merged[i].qty;
+        if (!av) { printf("Item %d is not available.\n", mg[i].item_id); return -1; }
+        tc += ce * mg[i].qty;
     }
 
-    /* database: order + its lines in one transaction */
+    //database: order + its lines in one transaction
     if (run_query("START TRANSACTION") != 0) return -1;
 
-    snprintf(sql, sizeof sql,
+    snprintf(q, sizeof q,
              "INSERT INTO orders (user_id, priority, order_status, total_cost) "
              "VALUES (%d, %d, 'PLACED', %ld.%02ld)",
-             user_id, priority, total_cents / 100, total_cents % 100);
-    if (run_query(sql) != 0) { run_query("ROLLBACK"); return -1; }
+             uid, pr, tc / 100, tc % 100);
+    if (run_query(q) != 0) { run_query("ROLLBACK"); return -1; }
     int id = (int)mysql_insert_id(conn);
 
     for (int i = 0; i < m; i++) {
-        snprintf(sql, sizeof sql,
+        snprintf(q, sizeof q,
                  "INSERT INTO order_items (order_id, item_id, quantity) VALUES (%d, %d, %d)",
-                 id, merged[i].item_id, merged[i].qty);
-        if (run_query(sql) != 0) { run_query("ROLLBACK"); return -1; }
+                 id, mg[i].item_id, mg[i].qty);
+        if (run_query(q) != 0) { run_query("ROLLBACK"); return -1; }
     }
     if (run_query("COMMIT") != 0) { run_query("ROLLBACK"); return -1; }
 
-    /* priority queue: only after the database accepted the order */
-    if (pq_push(id, KEY(priority, id)) != 0) {
+    //priority queue: only after the database accepted the order
+    if (pq_push(id, PQ_KEY(pr, id)) != 0) {
         printf("Could not add order %d to the queue; undoing it.\n", id);
-        snprintf(sql, sizeof sql, "DELETE FROM orders WHERE order_id = %d", id);
-        run_query(sql);                    /* order_items go with it (ON DELETE CASCADE) */
+        snprintf(q, sizeof q, "DELETE FROM orders WHERE order_id = %d", id);
+        run_query(q); //order_items go with it (ON DELETE CASCADE)
         return -1;
     }
     return id;
 }
 
-/* ---------- delete ---------- */
+//---------- delete ----------
 
 int order_delete(int id)
 {
-    char sql[128];
+    char q[128];
 
     if (!order_exists(id)) { printf("Order %d not found.\n", id); return -1; }
 
-    /* database first: fails (and keeps the order) if a bill still points to it */
-    snprintf(sql, sizeof sql, "DELETE FROM orders WHERE order_id = %d", id);
-    if (run_query(sql) != 0) return -1;
+    //only a PLACED order can be cancelled; the database refuses if a bill points to it
+    snprintf(q, sizeof q, "DELETE FROM orders WHERE order_id = %d AND order_status = 'PLACED'", id);
+    if (run_query(q) != 0) return -1;
+    if (mysql_affected_rows(conn) != 1) { printf("Order %d is already being prepared.\n", id); return -1; }
 
-    pq_remove(id);      /* -1 here just means it was no longer waiting (already cooking etc.) */
+    pq_remove(id);
     return 0;
 }
 
-/* ---------- queue restore ---------- */
+//---------- queue restore ----------
 
 int order_load_queue(void)
 {
@@ -171,45 +170,45 @@ int order_load_queue(void)
     MYSQL_ROW row;
     while ((row = mysql_fetch_row(res)) != NULL) {
         int id = atoi(row[0]), pr = atoi(row[1]);
-        if (pq_push(id, KEY(pr, id)) != 0) { mysql_free_result(res); return -1; }
+        if (pq_push(id, PQ_KEY(pr, id)) != 0) { mysql_free_result(res); return -1; }
         count++;
     }
     mysql_free_result(res);
     return count;
 }
 
-/* ---------- read ---------- */
+//---------- read ----------
 
 int order_get(int id, Order *out)
 {
     if (out == NULL) return -1;
 
-    char sql[256];
+    char q[256];
     MYSQL_RES *res;
     MYSQL_ROW row;
 
-    snprintf(sql, sizeof sql,
-             "SELECT order_id, user_id, IFNULL(chef_id, 0), IFNULL(delivery_id, 0), "
+    snprintf(q, sizeof q,
+             "SELECT order_id, user_id, IFNULL(chef_id, 0), IFNULL(delivery_staff_id, 0), "
              "priority, order_status, total_cost FROM orders WHERE order_id = %d", id);
-    if ((row = select_one(sql, &res)) == NULL) return -1;
+    if ((row = select_one(q, &res)) == NULL) return -1;
 
-    int status = status_from_name(row[5]);
-    if (status < 0) { mysql_free_result(res); return -1; }
+    int st = status_from_name(row[5]);
+    if (st < 0) { mysql_free_result(res); return -1; }
 
     memset(out, 0, sizeof *out);
     out->id          = atoi(row[0]);
     out->user_id     = atoi(row[1]);
     out->chef_id     = atoi(row[2]);
-    out->delivery_id = atoi(row[3]);
+    out->dstaff = atoi(row[3]);
     out->priority    = atoi(row[4]);
-    out->status      = (OrderStatus)status;
+    out->status      = (OrderStatus)st;
     out->total       = atof(row[6]);
     mysql_free_result(res);
 
-    snprintf(sql, sizeof sql,
+    snprintf(q, sizeof q,
              "SELECT item_id, quantity FROM order_items WHERE order_id = %d "
              "ORDER BY item_id LIMIT %d", id, MAX_LINES);
-    if (run_query(sql) != 0) return -1;
+    if (run_query(q) != 0) return -1;
     res = mysql_store_result(conn);
     if (res == NULL) return -1;
     while ((row = mysql_fetch_row(res)) != NULL && out->line_count < MAX_LINES) {
@@ -230,7 +229,7 @@ void order_show(int id)
     printf("  Status  : %s\n", STATUS_NAME[o.status]);
     printf("  Priority: %d\n", o.priority);
     printf("  Chef    : "); if (o.chef_id) printf("%d\n", o.chef_id); else printf("-\n");
-    printf("  Delivery: "); if (o.delivery_id) printf("%d\n", o.delivery_id); else printf("-\n");
+    printf("  Delivery: "); if (o.dstaff) printf("%d\n", o.dstaff); else printf("-\n");
     printf("  Items:\n");
     for (int i = 0; i < o.line_count; i++)
         printf("    item %d x %d\n", o.lines[i].item_id, o.lines[i].qty);
@@ -242,26 +241,26 @@ void order_queue_show(void)
     pq_show();
 }
 
-/* ---------- status changes ---------- */
+//---------- status changes ----------
 
-int order_cook_next(int chef_id)
+int order_cook_next(int chef)
 {
-    if (!staff_has_role(chef_id, "CHEF")) {
-        printf("Staff %d is not a chef.\n", chef_id);
+    if (!staff_has_role(chef, "CHEF")) {
+        printf("Staff %d is not a chef.\n", chef);
         return -1;
     }
 
-    char sql[256];
+    char q[256];
     int id;
     while ((id = pq_pop()) != -1) {
-        /* only a PLACED order may start cooking; skip stale queue entries */
-        snprintf(sql, sizeof sql,
+        //only a PLACED order may start cooking; skip stale queue entries
+        snprintf(q, sizeof q,
                  "UPDATE orders SET order_status = 'COOKING', chef_id = %d "
-                 "WHERE order_id = %d AND order_status = 'PLACED'", chef_id, id);
-        if (run_query(sql) != 0) {              /* database problem: put it back */
+                 "WHERE order_id = %d AND order_status = 'PLACED'", chef, id);
+        if (run_query(q) != 0) { //database problem: put it back
             Order o;
             if (order_get(id, &o) == 0 && o.status == ORDER_PLACED)
-                pq_push(id, KEY(o.priority, id));
+                pq_push(id, PQ_KEY(o.priority, id));
             return -1;
         }
         if (mysql_affected_rows(conn) == 1)
@@ -272,11 +271,11 @@ int order_cook_next(int chef_id)
 
 int order_mark_ready(int id)
 {
-    char sql[160];
-    snprintf(sql, sizeof sql,
+    char q[160];
+    snprintf(q, sizeof q,
              "UPDATE orders SET order_status = 'READY' "
              "WHERE order_id = %d AND order_status = 'COOKING'", id);
-    if (run_query(sql) != 0) return -1;
+    if (run_query(q) != 0) return -1;
     return mysql_affected_rows(conn) == 1 ? 0 : -1;
 }
 
@@ -287,26 +286,32 @@ int order_set_status(int id, OrderStatus s)
     Order o;
     if (order_get(id, &o) != 0) return -1;
 
-    char sql[160];
-    snprintf(sql, sizeof sql, "UPDATE orders SET order_status = '%s' WHERE order_id = %d",
-             STATUS_NAME[s], id);
-    if (run_query(sql) != 0) return -1;
+    if (s != o.status + 1 && !(s == ORDER_PLACED && o.status == ORDER_COOKING)) {
+        printf("Cannot change order %d from %s to %s.\n", id, STATUS_NAME[o.status], STATUS_NAME[s]);
+        return -1;
+    }
 
-    /* keep the queue in step: only PLACED orders wait in it */
+    char q[160];
+    snprintf(q, sizeof q, "UPDATE orders SET order_status = '%s'%s WHERE order_id = %d",
+             STATUS_NAME[s], s == ORDER_PLACED ? ", chef_id = NULL" : "", id);
+    if (run_query(q) != 0) return -1;
+
+    //keep the queue in step: only PLACED orders wait in it
     pq_remove(id);
-    if (s == ORDER_PLACED && pq_push(id, KEY(o.priority, id)) != 0) return -1;
+    if (s == ORDER_PLACED && pq_push(id, PQ_KEY(o.priority, id)) != 0) return -1;
     return 0;
 }
 
-int order_set_delivery_staff(int id, int staff_id)
+int order_set_delivery_staff(int id, int sid)
 {
     if (!order_exists(id)) return -1;
-    if (!staff_has_role(staff_id, "DELIVERY")) {
-        printf("Staff %d is not a delivery partner.\n", staff_id);
+    if (!staff_has_role(sid, "DELIVERY")) {
+        printf("Staff %d is not a delivery partner.\n", sid);
         return -1;
     }
-    char sql[160];
-    snprintf(sql, sizeof sql, "UPDATE orders SET delivery_id = %d WHERE order_id = %d",
-             staff_id, id);
-    return run_query(sql);
+    char q[160];
+    snprintf(q, sizeof q, "UPDATE orders SET delivery_staff_id = %d WHERE order_id = %d",
+             sid, id);
+    if (run_query(q) != 0) return -1;
+    return 0;
 }

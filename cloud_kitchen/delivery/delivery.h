@@ -1,20 +1,14 @@
 #ifndef DELIVERY_H
 #define DELIVERY_H
+#include "../common.h"
 
-#include "../common.h"      /* GeoPoint */
+//saves or updates a DELIVERY staff member's location; 0 or -1
+int delivery_add_partner(int sid, GeoPoint loc);
 
-/* Registers a delivery partner's current location (or updates it if already registered).
- * staff_id must belong to a staff member with role DELIVERY.
- * Returns 0 on success, -1 on failure. */
-int delivery_add_partner(int staff_id, GeoPoint loc);
+//nearest free partner (kd tree) takes a READY order, which becomes OUT_FOR_DELIVERY; returns staff_id or -1
+int delivery_assign(int oid);
 
-/* Assigns the nearest free delivery partner to a READY order and sets the order
- * to OUT_FOR_DELIVERY. Returns the partner's staff_id, or -1 if the order is not
- * ready / has no location / no partner is free. */
-int delivery_assign(int order_id);
-
-/* Marks an OUT_FOR_DELIVERY order as DELIVERED and moves the partner to the
- * customer's location. Returns 0 on success, -1 on failure. */
-int delivery_complete(int order_id);
+//OUT_FOR_DELIVERY order becomes DELIVERED and the partner moves to the customer; 0 or -1
+int delivery_complete(int oid);
 
 #endif

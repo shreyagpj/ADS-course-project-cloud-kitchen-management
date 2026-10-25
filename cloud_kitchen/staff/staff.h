@@ -8,7 +8,7 @@ typedef struct {
     Role role; 
 } Staff;
 
-int staff_add(const char *fName, const char *lName, const char *email, const char *contactNumber, Role role, const char *hiringDate, double salary);
-int  staff_get(int id, Staff *out);
+int staff_add(const char *fn, const char *ln, const char *email, const char *cn, Role role, const char *hd, double salary);
+int staff_get(int id, Staff *out);
 void staff_list(void);
 #endif

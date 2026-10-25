@@ -1,133 +1,110 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "delivery.h"
-#include "../common.h"
-#include "../db/db.h"
+#include "kdtree.h"
 
-extern MYSQL *conn;
+#define PI 3.14159265358979323846
 
-/* Runs a SELECT and returns the result (caller frees it), or NULL on error. */
-static MYSQL_RES *run_select(const char *query)
+static MYSQL_RES *sel(const char *q)
 {
-    if (mysql_query(conn, query)) {
+    if (mysql_query(conn, q)) {
         printf("Database error: %s\n", mysql_error(conn));
         return NULL;
     }
     return mysql_store_result(conn);
 }
 
-/* Runs an INSERT/UPDATE. Returns affected rows, or -1 on error. */
-static int run_update(const char *query)
+//affected rows, or -1 on error
+static int upd(const char *q)
 {
-    if (mysql_query(conn, query)) {
+    if (mysql_query(conn, q)) {
         printf("Database error: %s\n", mysql_error(conn));
         return -1;
     }
     return (int)mysql_affected_rows(conn);
 }
 
-int delivery_add_partner(int staff_id, GeoPoint loc)
+int delivery_add_partner(int id, GeoPoint g)
 {
-    char query[512];
-
-    /* only staff with the DELIVERY role can be partners */
-    snprintf(query, sizeof query,
-             "SELECT staff_id FROM staff WHERE staff_id = %d AND role = 'DELIVERY'",
-             staff_id);
-    MYSQL_RES *res = run_select(query);
-    if (res == NULL)
-        return -1;
-    int found = (mysql_fetch_row(res) != NULL);
-    mysql_free_result(res);
-    if (!found) {
-        printf("Staff %d is not a delivery partner.\n", staff_id);
+    char q[512];
+    snprintf(q, sizeof q, "SELECT staff_id FROM staff WHERE staff_id = %d AND role = 'DELIVERY'", id);
+    MYSQL_RES *r = sel(q);
+    if (r == NULL) return -1;
+    int f = (mysql_fetch_row(r) != NULL);
+    mysql_free_result(r);
+    if (!f) {
+        printf("Staff %d is not a delivery partner.\n", id);
         return -1;
     }
 
-    snprintf(query, sizeof query,
-             "INSERT INTO delivery_partner (staff_id, latitude, longitude) "
-             "VALUES (%d, %.7f, %.7f) "
+    snprintf(q, sizeof q,
+             "INSERT INTO delivery_partner (staff_id, latitude, longitude) VALUES (%d, %.7f, %.7f) "
              "ON DUPLICATE KEY UPDATE latitude = %.7f, longitude = %.7f",
-             staff_id, loc.lat, loc.lon, loc.lat, loc.lon);
-    return run_update(query) < 0 ? -1 : 0;
+             id, g.lat, g.lon, g.lat, g.lon);
+    return upd(q) < 0 ? -1 : 0;
 }
 
-int delivery_assign(int order_id)
+int delivery_assign(int oid)
 {
-    char query[1024];
-
-    /* 1. the order must be READY, not yet assigned, and its customer needs a location */
-    snprintf(query, sizeof query,
-             "SELECT u.latitude, u.longitude "
-             "FROM orders o JOIN users u ON u.user_id = o.user_id "
-             "WHERE o.order_id = %d AND o.order_status = 'READY' AND o.delivery_id IS NULL",
-             order_id);
-    MYSQL_RES *res = run_select(query);
-    if (res == NULL)
-        return -1;
-    MYSQL_ROW row = mysql_fetch_row(res);
-    if (row == NULL) {
-        mysql_free_result(res);
+    char q[1024];
+    snprintf(q, sizeof q,
+             "SELECT u.latitude, u.longitude FROM orders o JOIN users u ON u.user_id = o.user_id "
+             "WHERE o.order_id = %d AND o.order_status = 'READY' AND o.delivery_staff_id IS NULL", oid);
+    MYSQL_RES *r = sel(q);
+    if (r == NULL) return -1;
+    MYSQL_ROW w = mysql_fetch_row(r);
+    if (w == NULL) { mysql_free_result(r); return -1; }
+    if (w[0] == NULL || w[1] == NULL) {
+        printf("Customer of order %d has no delivery location.\n", oid);
+        mysql_free_result(r);
         return -1;
     }
-    if (row[0] == NULL || row[1] == NULL) {
-        printf("Customer of order %d has no delivery location.\n", order_id);
-        mysql_free_result(res);
-        return -1;
-    }
-    double lat = atof(row[0]);
-    double lon = atof(row[1]);
-    mysql_free_result(res);
+    double la = atof(w[0]), lo = atof(w[1]);
+    mysql_free_result(r);
 
-    /* 2. nearest free partner: not currently carrying an OUT_FOR_DELIVERY order.
-          Distance is the flat-earth approximation, good enough inside a city. */
-    snprintf(query, sizeof query,
-             "SELECT p.staff_id FROM delivery_partner p "
-             "WHERE NOT EXISTS (SELECT 1 FROM orders o "
-             "                  WHERE o.delivery_id = p.staff_id "
-             "                  AND o.order_status = 'OUT_FOR_DELIVERY') "
-             "ORDER BY POW(p.latitude - %.7f, 2) "
-             "       + POW((p.longitude - %.7f) * COS(RADIANS(%.7f)), 2) "
-             "LIMIT 1",
-             lat, lon, lat);
-    res = run_select(query);
-    if (res == NULL)
-        return -1;
-    row = mysql_fetch_row(res);
-    if (row == NULL) {
-        mysql_free_result(res);
-        return -1;                      /* nobody is free */
-    }
-    int partner = atoi(row[0]);
-    mysql_free_result(res);
+    //longitude is scaled by cos(lat) so kd distances are roughly equal on both axes
+    double k = cos(la * PI / 180.0);
+    GeoPoint t = { la, lo * k };
 
-    /* 3. assign the partner */
-    snprintf(query, sizeof query,
-             "UPDATE orders SET delivery_id = %d, order_status = 'OUT_FOR_DELIVERY' "
-             "WHERE order_id = %d AND order_status = 'READY'",
-             partner, order_id);
-    return run_update(query) == 1 ? partner : -1;
+    snprintf(q, sizeof q,
+             "SELECT p.staff_id, p.latitude, p.longitude, EXISTS (SELECT 1 FROM orders o "
+             "WHERE o.delivery_staff_id = p.staff_id AND o.order_status = 'OUT_FOR_DELIVERY') "
+             "FROM delivery_partner p");
+    r = sel(q);
+    if (r == NULL) return -1;
+    KDNode *root = NULL;
+    while ((w = mysql_fetch_row(r)) != NULL) {
+        int id = atoi(w[0]);
+        GeoPoint g = { atof(w[1]), atof(w[2]) * k };
+        root = kd_insert(root, g, id);
+        if (atoi(w[3])) kd_set_busy(root, id, 1);
+    }
+    mysql_free_result(r);
+
+    int s = kd_nearest_free(root, t);
+    kd_free(root);
+    if (s < 0) return -1;
+
+    snprintf(q, sizeof q,
+             "UPDATE orders SET delivery_staff_id = %d, order_status = 'OUT_FOR_DELIVERY' "
+             "WHERE order_id = %d AND order_status = 'READY'", s, oid);
+    return upd(q) == 1 ? s : -1;
 }
 
-int delivery_complete(int order_id)
+int delivery_complete(int oid)
 {
-    char query[1024];
-
-    /* the partner is now standing at the customer's location */
-    snprintf(query, sizeof query,
-             "UPDATE delivery_partner p "
-             "JOIN orders o ON o.delivery_id = p.staff_id "
+    char q[1024];
+    snprintf(q, sizeof q,
+             "UPDATE delivery_partner p JOIN orders o ON o.delivery_staff_id = p.staff_id "
              "JOIN users u ON u.user_id = o.user_id "
              "SET p.latitude = u.latitude, p.longitude = u.longitude "
              "WHERE o.order_id = %d AND o.order_status = 'OUT_FOR_DELIVERY' "
-             "AND u.latitude IS NOT NULL AND u.longitude IS NOT NULL",
-             order_id);
-    if (run_update(query) < 0)
-        return -1;
+             "AND u.latitude IS NOT NULL AND u.longitude IS NOT NULL", oid);
+    if (upd(q) < 0) return -1;
 
-    snprintf(query, sizeof query,
+    snprintf(q, sizeof q,
              "UPDATE orders SET order_status = 'DELIVERED' "
-             "WHERE order_id = %d AND order_status = 'OUT_FOR_DELIVERY'",
-             order_id);
-    return run_update(query) == 1 ? 0 : -1;
+             "WHERE order_id = %d AND order_status = 'OUT_FOR_DELIVERY'", oid);
+    return upd(q) == 1 ? 0 : -1;
 }

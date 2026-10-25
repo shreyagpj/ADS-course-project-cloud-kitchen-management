@@ -3,9 +3,6 @@
 #include <string.h>
 #include "menu.h"
 #include "../common.h"
-#include "../db/db.h"
-
-extern MYSQL *conn;
 
 int item_add(const char *name, double price)
 {
@@ -18,28 +15,28 @@ int item_add(const char *name, double price)
         return -1;
     }
 
-    /* escape the name so quotes in it cannot break the query */
+    //escape the name so quotes in it cannot break the query
     size_t len = strlen(name);
-    char *escaped = (char *)malloc(len * 2 + 1);
-    if (escaped == NULL) {
+    char *es = (char *)malloc(len * 2 + 1);
+    if (es == NULL) {
         printf("Out of memory.\n");
         return -1;
     }
-    mysql_real_escape_string(conn, escaped, name, (unsigned long)len);
+    mysql_real_escape_string(conn, es, name, (unsigned long)len);
 
-    size_t qsize = len * 2 + 128;
-    char *query = (char *)malloc(qsize);
-    if (query == NULL) {
-        free(escaped);
+    size_t qs = len * 2 + 128;
+    char *q = (char *)malloc(qs);
+    if (q == NULL) {
+        free(es);
         printf("Out of memory.\n");
         return -1;
     }
-    snprintf(query, qsize, "INSERT INTO menu (name, price) VALUES ('%s', %.2f)",
-             escaped, price);
+    snprintf(q, qs, "INSERT INTO menu (name, price) VALUES ('%s', %.2f)",
+             es, price);
 
     int id = -1;
-    if (mysql_query(conn, query)) {
-        if (mysql_errno(conn) == 1062)          /* duplicate entry */
+    if (mysql_query(conn, q)) {
+        if (mysql_errno(conn) == 1062) //duplicate entry
             printf("An item named '%s' already exists.\n", name);
         else
             printf("Database error: %s\n", mysql_error(conn));
@@ -47,8 +44,8 @@ int item_add(const char *name, double price)
         id = (int)mysql_insert_id(conn);
     }
 
-    free(query);
-    free(escaped);
+    free(q);
+    free(es);
     return id;
 }
 
@@ -79,4 +76,22 @@ void item_list(void)
     } while ((row = mysql_fetch_row(res)) != NULL);
 
     mysql_free_result(res);
+}
+int item_set_available(int id, int on)
+{
+    char q[128];
+    snprintf(q, sizeof q, "UPDATE menu SET is_available = %d WHERE menu_id = %d", on ? 1 : 0, id);
+    if (mysql_query(conn, q)) { printf("Database error: %s\n", mysql_error(conn)); return -1; }
+    if (mysql_affected_rows(conn) != 1) { printf("Item %d not found or unchanged.\n", id); return -1; }
+    return 0;
+}
+
+int item_set_price(int id, double p)
+{
+    char q[128];
+    if (p < 0) { printf("Price cannot be negative.\n"); return -1; }
+    snprintf(q, sizeof q, "UPDATE menu SET price = %.2f WHERE menu_id = %d", p, id);
+    if (mysql_query(conn, q)) { printf("Database error: %s\n", mysql_error(conn)); return -1; }
+    if (mysql_affected_rows(conn) != 1) { printf("Item %d not found or unchanged.\n", id); return -1; }
+    return 0;
 }

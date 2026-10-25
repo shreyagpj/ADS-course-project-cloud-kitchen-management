@@ -4,6 +4,6 @@
 #include <mysql/mysql.h>
 
 MYSQL *connectDb(void);
-void disconnectDb(MYSQL *conn);
+void disconnectDb(MYSQL *m);
 
 #endif

@@ -1,7 +1,6 @@
 USE ADS_cloud_kitchen;
 
--- Run order: staff, users, menu, orders (+ order_items), billing, delivery.
--- Note: order_items must reference menu(menu_id) (see fixed order_schema.sql).
+-- Run order: staff, users, menu, orders (+ order_items), billing, delivery_partner.
 
 -- ---------------------------------------------------------
 -- STAFF
@@ -49,7 +48,7 @@ INSERT INTO menu (name, description, price, prep_time, is_available) VALUES
 -- ORDERS  (priority: 1 = urgent, 2 = normal, 3 = low)
 -- total_cost = sum of price * quantity of the order's items
 -- ---------------------------------------------------------
-INSERT INTO orders (order_id, user_id, chef_id, delivery_id, priority, order_status, order_date_time, total_cost) VALUES
+INSERT INTO orders (order_id, user_id, chef_id, delivery_staff_id, priority, order_status, order_date_time, total_cost) VALUES
 (1, (SELECT user_id FROM users WHERE email = 'aarav.gupta@gmail.com'),
     (SELECT staff_id FROM staff WHERE email = 'priya.shah@cloudkitchen.com'),
     (SELECT staff_id FROM staff WHERE email = 'karan.joshi@cloudkitchen.com'),
@@ -113,26 +112,10 @@ INSERT INTO billing (order_id, user_id, total_amount, address, payment_status, p
 (8, (SELECT user_id FROM users WHERE email = 'isha.kapoor@gmail.com'),   500.00, '15, Raysan Residency, Raysan Road, Gandhinagar',             'PENDING', NULL,          NULL,             NULL);
 
 -- ---------------------------------------------------------
--- DELIVERY  (orders that have reached the delivery stage; main item only)
+-- DELIVERY PARTNERS  (current locations; Karan is busy with order 4)
 -- ---------------------------------------------------------
-INSERT INTO delivery (customer_name, address, menu_id, quantity, priority, status, staff_id, order_time, delivered_time) VALUES
-('Aarav Gupta',   'B-12, Shreeji Apartments, Sector 7 Main Road, Gandhinagar',
-    (SELECT menu_id FROM menu WHERE name = 'Paneer Butter Masala'), 2, 2, 'DELIVERED',
-    (SELECT staff_id FROM staff WHERE email = 'karan.joshi@cloudkitchen.com'),
-    '2026-10-20 12:30:00', '2026-10-20 13:05:00'),
-('Diya Nair',     '45, Krishna Residency, Sector 21 Road, Gandhinagar',
-    (SELECT menu_id FROM menu WHERE name = 'Masala Dosa'), 3, 2, 'DELIVERED',
-    (SELECT staff_id FROM staff WHERE email = 'vikram.solanki@cloudkitchen.com'),
-    '2026-10-20 13:10:00', '2026-10-20 13:40:00'),
-('Rahul Verma',   'A-304, Infocity Heights, Infocity Road, Gandhinagar',
-    (SELECT menu_id FROM menu WHERE name = 'Veg Biryani'), 1, 1, 'DELIVERED',
-    (SELECT staff_id FROM staff WHERE email = 'sneha.trivedi@cloudkitchen.com'),
-    '2026-10-20 19:00:00', '2026-10-20 19:35:00'),
-('Meera Iyer',    '7, Sunrise Society, Sector 11 Street, Gandhinagar',
-    (SELECT menu_id FROM menu WHERE name = 'Margherita Pizza'), 2, 1, 'OUT_FOR_DELIVERY',
-    (SELECT staff_id FROM staff WHERE email = 'karan.joshi@cloudkitchen.com'),
-    '2026-10-21 12:00:00', NULL),
-('Siddharth Rao', 'C-21, Kudasan Greens, Kudasan Main Road, Gandhinagar',
-    (SELECT menu_id FROM menu WHERE name = 'Pav Bhaji'), 2, 2, 'PENDING',
-    NULL,
-    '2026-10-21 12:10:00', NULL);
+INSERT INTO delivery_partner (staff_id, latitude, longitude) VALUES
+((SELECT staff_id FROM staff WHERE email = 'karan.joshi@cloudkitchen.com'),    23.2290000, 72.6430000),
+((SELECT staff_id FROM staff WHERE email = 'vikram.solanki@cloudkitchen.com'), 23.2020000, 72.6600000),
+((SELECT staff_id FROM staff WHERE email = 'sneha.trivedi@cloudkitchen.com'),  23.1900000, 72.6350000),
+((SELECT staff_id FROM staff WHERE email = 'manish.parmar@cloudkitchen.com'),  23.2100000, 72.6500000);

@@ -7,11 +7,11 @@ typedef struct KDNode {
     struct KDNode *left, *right;
 } KDNode;
 
-KDNode *kd_insert(KDNode *root, GeoPoint p, int staff_id);
+KDNode *kd_insert(KDNode *root, GeoPoint p, int sid);
 int kd_nearest_free(const KDNode *root, GeoPoint target);
-int kd_set_busy(KDNode *root, int staff_id, int busy);
+int kd_set_busy(KDNode *root, int sid, int busy);
 
-KDNode *kd_remove(KDNode *root, int staff_id);
-int kd_get(const KDNode *root, int staff_id, GeoPoint *out_point, int *out_busy);
+KDNode *kd_remove(KDNode *root, int sid);
+int kd_get(const KDNode *root, int sid, GeoPoint *op, int *ob);
 void kd_free(KDNode *root);
 #endif

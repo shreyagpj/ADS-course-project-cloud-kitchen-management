@@ -22,9 +22,11 @@ void trie_free(TNode *n)
 
 void trie_add(TNode *r, const char *w)
 {
+    if (strlen(w) >= MAXC) return;
     for (; *w; w++) {
         int c = *w & 127;
         if (!r->kid[c]) r->kid[c] = trie_new();
+        if (!r->kid[c]) return;
         r = r->kid[c];
     }
     r->end = 1;

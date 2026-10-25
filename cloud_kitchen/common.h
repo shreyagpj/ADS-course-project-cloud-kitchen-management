@@ -1,19 +1,16 @@
-/* common.h - shared types. Rule for all modules:
- *   "add" functions return the new ID (or -1 on failure)
- *   other functions return 0 on success, -1 on failure                      */
 #ifndef COMMON_H
 #define COMMON_H
 #include <stdio.h>
 #include <mysql/mysql.h>
 
+//add functions return the new id or -1; all others return 0 on success, -1 on failure
 #define MAX_NAME  50
-#define MAX_LINES 10                       /* max different items in one order */
-#define TODO() printf("[TODO] %s() not implemented yet\n", __func__)
+#define MAX_LINES 10    //different items in one order
 
 extern MYSQL *conn;
 
-typedef struct { 
-    double lat, lon; 
+typedef struct {
+    double lat, lon;
 } GeoPoint;
 
 typedef enum { ORDER_PLACED, ORDER_COOKING, ORDER_READY, ORDER_OUT_FOR_DELIVERY, ORDER_DELIVERED } OrderStatus;
