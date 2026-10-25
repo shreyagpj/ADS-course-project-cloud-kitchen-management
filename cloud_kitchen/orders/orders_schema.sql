@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_id         INT           NOT NULL AUTO_INCREMENT,
     user_id          INT           NOT NULL,
     chef_id          INT           NULL,
-    delivery_staff_id      INT           NULL,
+    delivery_id      INT           NULL,
     priority         TINYINT       NOT NULL DEFAULT 2,
     order_status     ENUM('PLACED','COOKING','READY','OUT_FOR_DELIVERY','DELIVERED')
                                    NOT NULL DEFAULT 'PLACED',
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS orders (
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_orders_chef      FOREIGN KEY (chef_id)     REFERENCES staff (staff_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_orders_delivery  FOREIGN KEY (delivery_staff_id) REFERENCES staff (staff_id)
+    CONSTRAINT fk_orders_delivery  FOREIGN KEY (delivery_id) REFERENCES staff (staff_id)
         ON UPDATE CASCADE ON DELETE SET NULL,
     INDEX idx_orders_user   (user_id),
     INDEX idx_orders_status (order_status, priority, order_id)

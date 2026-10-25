@@ -50,7 +50,7 @@ int delivery_assign(int oid)
     char q[1024];
     snprintf(q, sizeof q,
              "SELECT u.latitude, u.longitude FROM orders o JOIN users u ON u.user_id = o.user_id "
-             "WHERE o.order_id = %d AND o.order_status = 'READY' AND o.delivery_staff_id IS NULL", oid);
+             "WHERE o.order_id = %d AND o.order_status = 'READY' AND o.delivery_id IS NULL", oid);
     MYSQL_RES *r = sel(q);
     if (r == NULL) return -1;
     MYSQL_ROW w = mysql_fetch_row(r);
@@ -69,7 +69,7 @@ int delivery_assign(int oid)
 
     snprintf(q, sizeof q,
              "SELECT p.staff_id, p.latitude, p.longitude, EXISTS (SELECT 1 FROM orders o "
-             "WHERE o.delivery_staff_id = p.staff_id AND o.order_status = 'OUT_FOR_DELIVERY') "
+             "WHERE o.delivery_id = p.staff_id AND o.order_status = 'OUT_FOR_DELIVERY') "
              "FROM delivery_partner p");
     r = sel(q);
     if (r == NULL) return -1;
@@ -87,7 +87,7 @@ int delivery_assign(int oid)
     if (s < 0) return -1;
 
     snprintf(q, sizeof q,
-             "UPDATE orders SET delivery_staff_id = %d, order_status = 'OUT_FOR_DELIVERY' "
+             "UPDATE orders SET delivery_id = %d, order_status = 'OUT_FOR_DELIVERY' "
              "WHERE order_id = %d AND order_status = 'READY'", s, oid);
     return upd(q) == 1 ? s : -1;
 }
@@ -96,7 +96,7 @@ int delivery_complete(int oid)
 {
     char q[1024];
     snprintf(q, sizeof q,
-             "UPDATE delivery_partner p JOIN orders o ON o.delivery_staff_id = p.staff_id "
+             "UPDATE delivery_partner p JOIN orders o ON o.delivery_id = p.staff_id "
              "JOIN users u ON u.user_id = o.user_id "
              "SET p.latitude = u.latitude, p.longitude = u.longitude "
              "WHERE o.order_id = %d AND o.order_status = 'OUT_FOR_DELIVERY' "

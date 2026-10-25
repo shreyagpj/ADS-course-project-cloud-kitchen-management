@@ -48,7 +48,7 @@ INSERT INTO menu (name, description, price, prep_time, is_available) VALUES
 -- ORDERS  (priority: 1 = urgent, 2 = normal, 3 = low)
 -- total_cost = sum of price * quantity of the order's items
 -- ---------------------------------------------------------
-INSERT INTO orders (order_id, user_id, chef_id, delivery_staff_id, priority, order_status, order_date_time, total_cost) VALUES
+INSERT INTO orders (order_id, user_id, chef_id, delivery_id, priority, order_status, order_date_time, total_cost) VALUES
 (1, (SELECT user_id FROM users WHERE email = 'aarav.gupta@gmail.com'),
     (SELECT staff_id FROM staff WHERE email = 'priya.shah@cloudkitchen.com'),
     (SELECT staff_id FROM staff WHERE email = 'karan.joshi@cloudkitchen.com'),

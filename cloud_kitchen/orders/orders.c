@@ -181,14 +181,14 @@ int order_load_queue(void)
 
 int order_get(int id, Order *out)
 {
-    if (out == NULL) return -1;
+    //if (out == NULL) return -1;
 
     char q[256];
     MYSQL_RES *res;
     MYSQL_ROW row;
 
     snprintf(q, sizeof q,
-             "SELECT order_id, user_id, IFNULL(chef_id, 0), IFNULL(delivery_staff_id, 0), "
+             "SELECT order_id, user_id, IFNULL(chef_id, 0), IFNULL(delivery_id, 0), "
              "priority, order_status, total_cost FROM orders WHERE order_id = %d", id);
     if ((row = select_one(q, &res)) == NULL) return -1;
 
@@ -310,7 +310,7 @@ int order_set_delivery_staff(int id, int sid)
         return -1;
     }
     char q[160];
-    snprintf(q, sizeof q, "UPDATE orders SET delivery_staff_id = %d WHERE order_id = %d",
+    snprintf(q, sizeof q, "UPDATE orders SET delivery_id = %d WHERE order_id = %d",
              sid, id);
     if (run_query(q) != 0) return -1;
     return 0;
