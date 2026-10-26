@@ -1,3 +1,4 @@
+//main.c reads input and calls module functions
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,267 +14,333 @@
 #include "db/db.h"
 #include "tries/trie.h"
 
-#define NC ((int)(sizeof C / sizeof *C))
+#define NCMD ((int)(sizeof cmds / sizeof *cmds))
 
 MYSQL *conn;
 
-typedef struct {
-    const char *n;
-    void (*f)(void);
+typedef struct
+{
+    const char *name;
+    void (*run)(void);
 } Cmd;
 
-static int run = 1;
+static int on = 1;
 
-static void ask_text(const char *p, char *b, int sz) {
-    printf("%s", p);
-    if (!fgets(b, sz, stdin)) {
-        disconnectDb(conn);
+//cuts the newline and quits when the input ends
+static void ask_text(const char *prompt, char *buf, int size)
+{
+    printf("%s", prompt);
+    if (!fgets(buf, size, stdin))
+    {
+        printf("\nBye!\n");
+        db_close(conn);
         exit(0);
     }
-    if (!strchr(b, '\n')) {
-        int c;
-        while ((c = getchar()) != '\n' && c != EOF);
+    if (!strchr(buf, '\n'))
+    {
+        int ch;
+        while ((ch = getchar()) != '\n' && ch != EOF);
     }
-    b[strcspn(b, "\n")] = '\0';
+    buf[strcspn(buf, "\n")] = '\0';
 }
 
-static int ask_int(const char *p) {
-    char b[32], *e;
-    ask_text(p, b, sizeof b);
-    long v = strtol(b, &e, 10);
-    return (e == b || *e || v < 0 || v > 2000000000L) ? -1 : (int)v;
+//minus one means bad input
+static int ask_int(const char *prompt)
+{
+    char b[32], *end;
+    ask_text(prompt, b, sizeof b);
+    long v = strtol(b, &end, 10);
+    return (end == b || *end || v < 0 || v > 2000000000L) ? -1 : (int) v;
 }
 
-static int ask_dbl(const char *p, double *o) {
-    char b[32], *e;
-    ask_text(p, b, sizeof b);
-    double v = strtod(b, &e);
-    if (e == b || *e || !isfinite(v)) {
+static int ask_id(const char *prompt)
+{
+    int id = ask_int(prompt);
+    if (id < 0) printf("Invalid number.\n");
+    return id;
+}
+
+static int ask_dbl(const char *prompt, double *out)
+{
+    char b[32], *end;
+    ask_text(prompt, b, sizeof b);
+    double v = strtod(b, &end);
+    if (end == b || *end || !isfinite(v))
+    {
         printf("Invalid number.\n");
         return -1;
     }
-    *o = v;
+    *out = v;
     return 0;
 }
 
-static int ask_loc(GeoPoint *g) {
+static int ask_loc(GeoPoint *g)
+{
     if (ask_dbl("  Latitude : ", &g->lat) || ask_dbl("  Longitude: ", &g->lon))
         return -1;
-    if (g->lat < -90 || g->lat > 90 || g->lon < -180 || g->lon > 180) {
+    if (g->lat < -90 || g->lat > 90 || g->lon < -180 || g->lon > 180)
+    {
         printf("Coordinates out of range.\n");
         return -1;
     }
     return 0;
 }
 
-static void report(int id, const char *w) {
-    if (id > 0)
-        printf("%s created with ID %d\n", w, id);
-    else
-        printf("Could not create %s.\n", w);
+//add calls give an id and the rest give 0 when ok
+static void report(int id, const char *what)
+{
+    if (id > 0) printf("%s created with ID %d\n", what, id);
+    else        printf("Could not create %s.\n", what);
 }
 
-static void ok(int r, const char *good) {
+static void show_ok(int r, const char *good)
+{
     printf("%s\n", r == 0 ? good : "Failed.");
 }
 
-static void c_uadd(void) {
-    char fn[101], ln[101], em[256], dob[16], ph[21], hn[21], sn[151], st[151], ct[101], sa[101];
-    GeoPoint g;
+static void add_user(void)
+{
+    char fn[101], ln[101], mail[256], dob[16], ph[21];
+    char house[21], soc[151], street[151], city[101], state[101];
+    GeoPoint loc;
+
     ask_text("First name: ", fn, sizeof fn);
     ask_text("Last name: ", ln, sizeof ln);
-    ask_text("Email: ", em, sizeof em);
+    ask_text("Email: ", mail, sizeof mail);
     ask_text("Date of birth (YYYY-MM-DD, blank to skip): ", dob, sizeof dob);
     ask_text("Contact number (blank to skip): ", ph, sizeof ph);
-    ask_text("House no (blank to skip): ", hn, sizeof hn);
-    ask_text("Society name (blank to skip): ", sn, sizeof sn);
-    ask_text("Street (blank to skip): ", st, sizeof st);
-    ask_text("City (blank to skip): ", ct, sizeof ct);
-    ask_text("State (blank to skip): ", sa, sizeof sa);
+    ask_text("House no (blank to skip): ", house, sizeof house);
+    ask_text("Society name (blank to skip): ", soc, sizeof soc);
+    ask_text("Street (blank to skip): ", street, sizeof street);
+    ask_text("City (blank to skip): ", city, sizeof city);
+    ask_text("State (blank to skip): ", state, sizeof state);
     printf("Delivery location:\n");
-    if (ask_loc(&g))
+    if (ask_loc(&loc))
         return;
-    report(user_add(fn, ln, em, dob, ph, hn, sn, st, g, ct, sa), "User");
+    report(user_add(fn, ln, mail, dob, ph, house, soc, street, loc, city, state), "User");
 }
 
-static void c_ulist(void) {
+static void list_users(void)
+{
     user_list();
 }
 
-static void c_sadd(void) {
-    char fn[101], ln[101], em[256], ph[21], dt[16];
-    double sal;
-    GeoPoint g;
+static void add_staff(void)
+{
+    char fn[101], ln[101], mail[256], ph[21], date[16];
+    double pay;
+    GeoPoint loc;
+
     ask_text("First name: ", fn, sizeof fn);
     ask_text("Last name: ", ln, sizeof ln);
-    ask_text("Email: ", em, sizeof em);
+    ask_text("Email: ", mail, sizeof mail);
     ask_text("Contact number (blank to skip): ", ph, sizeof ph);
-    int r = ask_int("Role (1=Chef, 2=Delivery partner): ");
-    if (r != ROLE_CHEF && r != ROLE_DELIVERY) {
+    int role = ask_int("Role (1=Chef, 2=Delivery partner): ");
+    if (role != ROLE_CHEF && role != ROLE_DELIVERY)
+    {
         printf("Invalid role.\n");
         return;
     }
-    ask_text("Hiring date (YYYY-MM-DD): ", dt, sizeof dt);
-    if (ask_dbl("Salary: ", &sal))
+    ask_text("Hiring date (YYYY-MM-DD): ", date, sizeof date);
+    if (ask_dbl("Salary: ", &pay))
         return;
-    if (r == ROLE_DELIVERY) {
+
+    //a partner needs a start spot for the nearest search
+    if (role == ROLE_DELIVERY)
+    {
         printf("Partner's current location:\n");
-        if (ask_loc(&g))
+        if (ask_loc(&loc))
             return;
     }
-    int id = staff_add(fn, ln, em, ph[0] ? ph : NULL, (Role)r, dt, sal);
+    int id = staff_add(fn, ln, mail, ph[0] ? ph : NULL, (Role) role, date, pay);
     report(id, "Staff");
-    if (id > 0 && r == ROLE_DELIVERY && delivery_add_partner(id, g) != 0)
+    if (id > 0 && role == ROLE_DELIVERY && delivery_add(id, loc) != 0)
         printf("Staff saved, but the partner location was not.\n");
 }
 
-static void c_slist(void) {
+static void list_staff(void)
+{
     staff_list();
 }
 
-static void c_iadd(void) {
-    char n[MAX_NAME];
-    double p;
-    ask_text("Item name: ", n, sizeof n);
-    if (ask_dbl("Price: ", &p))
+static void add_item(void)
+{
+    char name[MAX_NAME];
+    double price;
+
+    ask_text("Item name: ", name, sizeof name);
+    if (ask_dbl("Price: ", &price))
         return;
-    report(item_add(n, p), "Item");
+    report(item_add(name, price), "Item");
 }
 
-static void c_ilist(void) {
+static void list_items(void)
+{
     item_list();
 }
 
-static void c_itog(void) {
-    int i = ask_int("Item ID: ");
-    int a = ask_int("Available (1=yes, 0=no): ");
-    if (a != 0 && a != 1) {
+static void set_avail(void)
+{
+    int id = ask_id("Item ID: ");
+    if (id < 0)
+        return;
+    int on = ask_int("Available (1=yes, 0=no): ");
+    if (on != 0 && on != 1)
+    {
         printf("Invalid choice.\n");
         return;
     }
-    ok(item_set_available(i, a), "Item updated.");
+    show_ok(item_avail(id, on), "Item updated.");
 }
 
-static void c_iprice(void) {
-    double p;
-    int i = ask_int("Item ID: ");
-    if (ask_dbl("New price: ", &p))
+static void set_price(void)
+{
+    double price;
+    int id = ask_id("Item ID: ");
+    if (id < 0 || ask_dbl("New price: ", &price))
         return;
-    ok(item_set_price(i, p), "Price updated.");
+    show_ok(item_price(id, price), "Price updated.");
 }
 
-static void c_oplace(void) {
-    OrderLine l[MAX_LINES];
-    int u = ask_int("User ID: "), n = 0;
-    while (n < MAX_LINES) {
-        int i = ask_int("  Item ID (0 = done): ");
-        if (i == 0)
-            break;
+//item entry stops at 0 or when the order is full
+static void place_order(void)
+{
+    OrderLine lines[MAX_LINES];
+    int n = 0;
+    int uid = ask_id("User ID: ");
+    if (uid < 0)
+        return;
+    while (n < MAX_LINES)
+    {
+        int iid = ask_int("  Item ID (0 = done): ");
+        if (iid == 0) break;
         int q = ask_int("  Quantity: ");
-        if (i < 0 || q <= 0) {
-            printf("  Invalid.\n");
-            continue;
-        }
-        l[n].item_id = i;
-        l[n].qty = q;
-        n++;
+        if (iid < 0 || q <= 0) { printf("  Invalid.\n"); continue; }
+        lines[n].item_id = iid; lines[n].qty = q; n++;
     }
-    if (n == 0) {
+    if (n == 0)
+    {
         printf("Empty order discarded.\n");
         return;
     }
-    int p = ask_int("Priority (1=urgent, 2=normal, 3=low): ");
-    if (p < 1 || p > 3)
-        p = 2;
-    report(order_place(u, l, n, p), "Order");
+    int pr = ask_int("Priority (1=urgent, 2=normal, 3=low): ");
+    if (pr < 1 || pr > 3) pr = 2;
+    report(order_place(uid, lines, n, pr), "Order");
 }
 
-static void c_oview(void) {
-    order_show(ask_int("Order ID: "));
+static void view_order(void)
+{
+    int id = ask_id("Order ID: ");
+    if (id >= 0) order_show(id);
 }
 
-static void c_oqueue(void) {
-    order_queue_show();
+static void show_queue(void)
+{
+    order_queue();
 }
 
-static void c_ocook(void) {
-    int c = ask_int("Chef staff ID: ");
-    int o = order_cook_next(c);
-    if (o > 0)
-        printf("Chef %d is cooking order %d\n", c, o);
-    else
-        printf("No order to cook.\n");
+static void cook_order(void)
+{
+    int chef = ask_id("Chef staff ID: ");
+    if (chef < 0)
+        return;
+    int oid = order_cook(chef);
+    if (oid > 0) printf("Chef %d is cooking order %d\n", chef, oid);
+    else         printf("No order to cook.\n");
 }
 
-static void c_oready(void) {
-    ok(order_mark_ready(ask_int("Order ID: ")), "Order is ready.");
+static void ready_order(void)
+{
+    int id = ask_id("Order ID: ");
+    if (id >= 0) show_ok(order_ready(id), "Order is ready.");
 }
 
-static void c_odel(void) {
-    ok(order_delete(ask_int("Order ID: ")), "Order deleted.");
+static void del_order(void)
+{
+    int id = ask_id("Order ID: ");
+    if (id >= 0) show_ok(order_delete(id), "Order deleted.");
 }
 
-static void c_dassign(void) {
-    int o = ask_int("Order ID: ");
-    int s = delivery_assign(o);
-    if (s > 0)
-        printf("Order %d -> delivery partner %d (nearest free)\n", o, s);
-    else
-        printf("No free partner, or order not ready.\n");
+static void assign_ride(void)
+{
+    int oid = ask_id("Order ID: ");
+    if (oid < 0)
+        return;
+    int sid = delivery_assign(oid);
+    if (sid > 0) printf("Order %d -> delivery partner %d (nearest free)\n", oid, sid);
+    else         printf("No free partner, or order not ready.\n");
 }
 
-static void c_ddone(void) {
-    ok(delivery_complete(ask_int("Order ID: ")), "Delivered.");
+static void finish_ride(void)
+{
+    int oid = ask_id("Order ID: ");
+    if (oid >= 0) show_ok(delivery_done(oid), "Delivered.");
 }
 
-static void c_bgen(void) {
-    report(bill_generate(ask_int("Order ID: ")), "Bill");
+static void make_bill(void)
+{
+    int oid = ask_id("Order ID: ");
+    if (oid >= 0) report(bill_make(oid), "Bill");
 }
 
-static void c_bpay(void) {
-    static const char *m[] = { "CASH", "CARD", "UPI", "NET_BANKING" };
-    int b = ask_int("Bill ID: ");
-    int k = ask_int("Method (1=Cash, 2=Card, 3=UPI, 4=Net banking): ");
-    if (k < 1 || k > 4) {
+static void pay_bill(void)
+{
+    static const char *how[] = { "CASH", "CARD", "UPI", "NET_BANKING" };
+    int bid = ask_id("Bill ID: ");
+    if (bid < 0)
+        return;
+    int m = ask_int("Method (1=Cash, 2=Card, 3=UPI, 4=Net banking): ");
+    if (m < 1 || m > 4)
+    {
         printf("Invalid method.\n");
         return;
     }
-    ok(bill_pay(b, m[k - 1]), "Paid.");
+    show_ok(bill_pay(bid, how[m - 1]), "Paid.");   //arrays start at 0
 }
 
-static void c_bview(void) {
-    bill_show(ask_int("Bill ID: "));
+static void view_bill(void)
+{
+    int bid = ask_id("Bill ID: ");
+    if (bid >= 0) bill_show(bid);
 }
 
-static void c_bdel(void) {
-    ok(bill_delete(ask_int("Bill ID: ")), "Bill deleted.");
+static void del_bill(void)
+{
+    int bid = ask_id("Bill ID: ");
+    if (bid >= 0) show_ok(bill_del(bid), "Bill deleted.");
 }
 
-static void c_help(void);
+static void show_help(void);
 
-static void c_exit(void) {
-    run = 0;
+static void quit_prog(void)
+{
+    on = 0;
 }
 
-static const Cmd C[] = {
-    {"users add", c_uadd}, {"users list", c_ulist},
-    {"staff add", c_sadd}, {"staff list", c_slist},
-    {"items add", c_iadd}, {"items list", c_ilist},
-    {"items available", c_itog}, {"items price", c_iprice},
-    {"orders place", c_oplace}, {"orders view", c_oview}, {"orders queue", c_oqueue},
-    {"orders cook", c_ocook}, {"orders ready", c_oready}, {"orders delete", c_odel},
-    {"delivery assign", c_dassign}, {"delivery complete", c_ddone},
-    {"billing generate", c_bgen}, {"billing pay", c_bpay}, {"billing view", c_bview},
-    {"billing delete", c_bdel}, {"help", c_help}, {"exit", c_exit}
+//to add a command add a line here
+static const Cmd cmds[] = {
+    {"users add",         add_user},     {"users list",        list_users},
+    {"staff add",         add_staff},    {"staff list",        list_staff},
+    {"items add",         add_item},     {"items list",        list_items},
+    {"items available",   set_avail},    {"items price",       set_price},
+    {"orders place",      place_order},  {"orders view",       view_order},
+    {"orders queue",      show_queue},   {"orders cook",       cook_order},
+    {"orders ready",      ready_order},  {"orders delete",     del_order},
+    {"delivery assign",   assign_ride},  {"delivery complete", finish_ride},
+    {"billing generate",  make_bill},    {"billing pay",       pay_bill},
+    {"billing view",      view_bill},    {"billing delete",    del_bill},
+    {"help",              show_help},    {"exit",              quit_prog}
 };
 
-static void c_help(void) {
+static void show_help(void)
+{
     printf("Commands:\n");
-    for (int i = 0; i < NC; i++)
-        printf("  %s\n", C[i].n);
+    for (int i = 0; i < NCMD; i++)
+        printf("  %s\n", cmds[i].name);
 }
 
-static void trim(char *s) {
+static void trim(char *s)
+{
     char *a = s;
     while (*a == ' ')
         a++;
@@ -283,60 +350,77 @@ static void trim(char *s) {
         s[--n] = '\0';
 }
 
-int main(void) {
-    conn = connectDb();
+static int find_cmd(const char *name)
+{
+    for (int i = 0; i < NCMD; i++)
+    {
+        if (strcmp(cmds[i].name, name) == 0)
+            return i;
+    }
+    return -1;
+}
+
+int main(void)
+{
+    conn = db_open();
     if (conn == NULL)
         return 1;
 
-    int w = order_load_queue();
-    if (w < 0)
+    int wait = order_load();
+    if (wait < 0)
         printf("Warning: could not load waiting orders.\n");
-    else if (w > 0)
-        printf("%d order(s) waiting in the kitchen queue.\n", w);
+    else if (wait > 0)
+        printf("%d order(s) waiting in the kitchen queue.\n", wait);
 
-    if (NC > MAXL) {
+    if (NCMD > MAXL)
+    {
         printf("Too many commands for the trie (max %d).\n", MAXL);
-        disconnectDb(conn);
+        db_close(conn);
         return 1;
     }
 
-    TNode *t = trie_new();
-    if (t == NULL) {
-        disconnectDb(conn);
+    //every command goes in the trie for hints
+    TNode *trie = trie_new();
+    if (trie == NULL)
+    {
+        db_close(conn);
         return 1;
     }
-    for (int i = 0; i < NC; i++)
-        trie_add(t, C[i].n);
+    for (int i = 0; i < NCMD; i++)
+        trie_add(trie, cmds[i].name);
 
-    char b[MAXC];
+    char in[MAXC];
     printf("Type 'help' for the command list.\n");
 
-    while (run) {
-        ask_text("kitchen> ", b, sizeof b);
-        trim(b);
-        if (!b[0])
+    while (on)
+    {
+        ask_text("kitchen> ", in, sizeof in);
+        trim(in);
+        if (!in[0])
             continue;
 
-        int i = 0;
-        while (i < NC && strcmp(C[i].n, b) != 0)
-            i++;
-        if (i < NC) {
-            trie_use(t, b);
-            C[i].f();
+        int f = find_cmd(in);
+        if (f >= 0)
+        {
+            trie_use(trie, in);
+            cmds[f].run();
             continue;
         }
-        Word s[MAXL];
-        int k = trie_list(t, b, s, MAXL);
-        if (k == 0) {
-            printf("Unknown command '%s'.\n", b);
+
+        //no exact match so show commands that start with the input
+        Word hint[MAXL];
+        int k = trie_list(trie, in, hint, MAXL);
+        if (k == 0)
+        {
+            printf("Unknown command '%s'.\n", in);
             continue;
         }
         printf("Did you mean:\n");
-        for (int j = 0; j < k; j++)
-            printf("  %s\n", s[j]);
+        for (int i = 0; i < k; i++)
+            printf("  %s\n", hint[i]);
     }
 
-    trie_free(t);
-    disconnectDb(conn);
+    trie_free(trie);
+    db_close(conn);
     return 0;
 }

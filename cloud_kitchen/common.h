@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <mysql/mysql.h>
 
-//add functions return the new id or -1; all others return 0 on success, -1 on failure
+//add calls give the new id or minus one and others give 0 or minus one
 #define MAX_NAME  50
-#define MAX_LINES 10    //different items in one order
+#define MAX_LINES 10
 
 extern MYSQL *conn;
 
-typedef struct {
+typedef struct
+{
     double lat, lon;
 } GeoPoint;
 

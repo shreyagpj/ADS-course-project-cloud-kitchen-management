@@ -2,131 +2,145 @@
 #include <stdlib.h>
 #include "pq.h"
 
-#define INITIAL_CAPACITY 16
+#define INIT_CAP 16
 
-typedef struct {
-    int order_id;
+typedef struct
+{
+    int oid;
     long long key;
-} PQNode;
+} Node;
 
-static PQNode *heap = NULL;
+static Node *heap = NULL;
 static int size = 0;
 static int cap = 0;
 
-static void swap(PQNode *a, PQNode *b) {
-    PQNode tp = *a;
+static void swap(Node *a, Node *b)
+{
+    Node t = *a;
     *a = *b;
-    *b = tp;
+    *b = t;
 }
 
-//Move child upward after pushing
-static void move_up(int i) {
-    while (i > 0) {
-        int parent = (i - 1) / 2;
+//lifts a node while it is smaller than its parent
+static void up(int i)
+{
+    while (i > 0)
+    {
+        int p = (i - 1) / 2;
 
-        if (heap[parent].key <= heap[i].key)
+        if (heap[p].key <= heap[i].key)
             break;
-        swap(&heap[parent], &heap[i]);
-        i = parent;
+        swap(&heap[p], &heap[i]);
+        i = p;
     }
 }
 
-//Move new root downwards after popping
-static void move_down(int i) {
-    while (1) {
-        int sm = i, left = 2 * i + 1, right = 2 * i + 2;
+static void down(int i)
+{
+    while (1)
+    {
+        int s = i, l = 2 * i + 1, r = 2 * i + 2;
 
-        if (left < size && heap[left].key < heap[sm].key)
-            sm = left;
-        if (right < size && heap[right].key < heap[sm].key)
-            sm = right;
-        if (sm == i)
+        if (l < size && heap[l].key < heap[s].key)
+            s = l;
+        if (r < size && heap[r].key < heap[s].key)
+            s = r;
+        if (s == i)
             break;
 
-        swap(&heap[i], &heap[sm]);
-        i = sm;
+        swap(&heap[i], &heap[s]);
+        i = s;
     }
 }
 
-//Add order to priority queue and double size if full
-int pq_push(int id, long long key) {
-    if (size == cap) {
-        int nc = (cap == 0)? INITIAL_CAPACITY : cap * 2;
-        PQNode *tp = realloc(heap, nc * sizeof(PQNode));
+//the array doubles when it is full
+int pq_push(int oid, long long key)
+{
+    if (size == cap)
+    {
+        int nc = (cap == 0) ? INIT_CAP : cap * 2;
+        Node *t = realloc(heap, nc * sizeof(Node));
 
-        if (tp == NULL)
+        if (t == NULL)
             return -1;
 
-        heap = tp;
+        heap = t;
         cap = nc;
     }
 
-    heap[size].order_id = id;
+    heap[size].oid = oid;
     heap[size].key = key;
-    move_up(size);
+    up(size);
     size++;
     return 0;
 }
 
-//Remove highest priority order from queue
-int pq_pop(void) {
+int pq_pop(void)
+{
     if (size == 0)
         return -1;
 
-    int id = heap[0].order_id;
+    int oid = heap[0].oid;
     heap[0] = heap[size - 1];
     size--;
 
     if (size > 0)
-        move_down(0);
+        down(0);
 
-    return id;
+    return oid;
 }
 
-//Remove a specific order from anywhere in the queue (used when an order is deleted/cancelled)
-int pq_remove(int id) {
-    for (int i = 0; i < size; i++) {
-        if (heap[i].order_id != id)
+//the last node fills the gap so it may go up or down
+int pq_del(int oid)
+{
+    for (int i = 0; i < size; i++)
+    {
+        if (heap[i].oid != oid)
             continue;
 
         heap[i] = heap[size - 1];
         size--;
-        if (i < size) {
-            move_up(i);
-            move_down(i);
+        if (i < size)
+        {
+            up(i);
+            down(i);
         }
         return 0;
     }
     return -1;
 }
 
-void pq_clear(void) {
+void pq_clear(void)
+{
     size = 0;
 }
 
-static int compare_nodes(const void *a, const void *b) {
-    const PQNode *x = a, *y = b;
+static int cmp(const void *a, const void *b)
+{
+    const Node *x = a, *y = b;
     return (x->key > y->key) - (x->key < y->key);
 }
 
-//Display orders present in queue, in cooking order
-void pq_show(void) {
-    if (size == 0) {
+void pq_show(void)
+{
+    if (size == 0)
+    {
         printf("Orders queue is empty.\n");
         return;
     }
 
-    PQNode *cp = malloc(size * sizeof(PQNode));
-    if (cp == NULL) {
+    Node *c = malloc(size * sizeof(Node));
+    if (c == NULL)
+    {
         printf("Out of memory.\n");
         return;
     }
     for (int i = 0; i < size; i++)
-        cp[i] = heap[i];
-    qsort(cp, size, sizeof(PQNode), compare_nodes);
+        c[i] = heap[i];
+    qsort(c, size, sizeof(Node), cmp);
 
     printf("Orders waiting to be cooked:\n");
     for (int i = 0; i < size; i++)
-        printf("%d. Order ID: %d, Key: %lld\n", i + 1, cp[i].order_id, cp[i].key);
-    free(cp);
+        printf("%d. Order ID: %d, Key: %lld\n", i + 1, c[i].oid, c[i].key);
+    free(c);
 }

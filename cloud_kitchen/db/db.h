@@ -3,7 +3,7 @@
 
 #include <mysql/mysql.h>
 
-MYSQL *connectDb(void);
-void disconnectDb(MYSQL *m);
+MYSQL *db_open(void);
+void db_close(MYSQL *m);
 
 #endif
